@@ -1,0 +1,21 @@
+Entire flow:
+
+Node connection
+      ↓
+Socket
+      ↓
+Publisher
+      ↓
+ClientHandler
+      ↓
+EngineManager
+      ↓
+EngineEvent
+      ↓
+SymbolEngine
+      ↓
+OrderBook
+      ↓
+publisher.publish(...)
+      ↓
+Same Node connection

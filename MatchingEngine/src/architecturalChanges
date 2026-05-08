@@ -1,0 +1,157 @@
+1. Separated OrderBook by Symbol
+Change
+Created one OrderBook per symbol (BTC, ETH) inside SymbolEngine.
+Why needed?
+Each market must maintain its own independent liquidity and matching state.
+Impact
+✅ Multi-symbol support
+✅ No cross-symbol contamination
+✅ Easy horizontal scaling per symbol
+
+2. Introduced Price-Level Order Book
+Change
+Used:TreeMap<Long, PriceLevel>
+for: bids, asks
+Each PriceLevel contains: price, FIFO deque of orders
+Why needed?
+To implement exchange-style price-time priority.
+Impact
+✅ Best bid/ask retrieval
+✅ FIFO matching at same price
+✅ Efficient price-level organization
+
+3. Added cancelMap
+Change
+Introduced: HashMap<Long, OrderReference>
+Why needed?
+Avoid scanning the entire order book during cancellation.
+Impact
+✅ O(1) order lookup
+✅ Faster cancel operations
+✅ Realistic exchange design
+
+4. Introduced Event-Driven Processing
+Change
+Created: EngineEvent, NewOrderEvent, CancelOrderEvent
+and queued them in: BlockingQueue<EngineEvent>
+Why needed?
+To decouple order submission from matching.
+Impact
+✅ Asynchronous processing
+✅ Better scalability
+✅ Clean event-driven architecture
+
+5. Implemented Single-Writer Model
+Change
+Each SymbolEngine runs its own matching thread.
+Why needed?
+Avoid locks and race conditions on shared order book state.
+Impact
+✅ Thread-safe matching
+✅ No synchronization overhead
+✅ Higher throughput
+
+6. Extracted EngineManager
+Change
+Introduced central routing layer.
+Why needed?
+To route orders to correct symbol engine.
+Impact
+✅ Centralized symbol routing
+✅ Easy symbol onboarding
+✅ Cleaner orchestration
+
+7. Added Order Validation Layer
+Change
+Validation before order enters book.
+Examples: symbol, quantity, price, duplicate orderId
+Why needed?
+Prevent invalid state from entering engine.
+Impact
+✅ Data integrity
+✅ Predictable behavior
+✅ Cleaner API responses
+
+8. Added Engine Response Events
+Change
+Introduced:
+	ORDER_ACCEPTED
+	ORDER_REJECTED
+	TRADE_EXECUTED
+	ORDER_PARTIALLY_FILLED
+	ORDER_FILLED
+	ORDER_CANCELLED
+	CANCEL_REJECTED
+Why needed?
+Expose engine state changes externally.
+Impact
+✅ Real-time trade lifecycle
+✅ Better observability
+✅ Frontend integration ready
+
+9. Introduced EngineResponsePublisher
+Change
+Abstracted event publishing through interface.
+Why needed?
+Separate matching logic from transport layer.
+Impact
+✅ Loose coupling
+✅ Transport-independent engine
+✅ Easier future extensions
+
+10. Removed Publisher from Core Engine Constructor
+Change
+Publisher moved from engine construction to per-event context.
+Why needed?
+Socket connections are short-lived; engine instances are long-lived.
+Impact
+✅ Correct dependency lifecycle
+✅ Multi-client support
+✅ Cleaner architecture
+
+11. Added TCP Transport Layer
+Change
+Created: EngineSocketServer, ClientHandler, SocketResponsePublisher
+Why needed?
+Connect Node.js gateway with Java engine.
+Impact
+✅ Persistent low-latency communication
+✅ Real-time bidirectional messaging
+✅ Exchange-style gateway architecture
+
+12. Extracted Transport from Main Application
+Change
+Removed socket parsing from MatchingEngineApp.
+Why needed?
+Main should only bootstrap services.
+Impact
+✅ Cleaner separation of concerns
+✅ Better maintainability
+✅ Production-style startup flow
+
+13. Switched to Request/Response Event Flow
+Change
+Each inbound event carries: business data, response publisher
+Why needed?
+Allow engine to respond to the correct client connection.
+Impact
+✅ Multi-client compatibility
+✅ Correct request-response mapping
+✅ Transport-aware event processing
+
+Current Architecture
+	Node REST API      
+	↓TCP Socket      
+	↓ClientHandler      
+	↓EngineManager      
+	↓SymbolEngine (single writer)      
+	↓OrderBook      
+	↓EngineResponsePublisher      
+	↓Node/WebSocket/UI
+Overall Impact
+✅ Exchange-style architecture
+✅ Event-driven
+✅ Thread-safe
+✅ Multi-symbol
+✅ Real-time publish/subscribe ready
+✅ Resume-worthy systems project
