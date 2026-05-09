@@ -8,7 +8,7 @@ export const placeOrder = async (req, res) => {
         //     "symbol": "AAPL",
         //     "userId": 5001,
         //     "side": "BUY",
-        //     "type": "LIMIT",
+        //     "orderType": "LIMIT",
         //     "price": 15000,
         //     "quantity": 10
         // }
@@ -17,10 +17,10 @@ export const placeOrder = async (req, res) => {
             const err = "Kindly enter valid price and quantity";
             res.status(400).json({message: `Order failed to placed. ${err}`});
         }
-    
+
         await sendOrder(order);
     
-        res.status(201).json({message: "Order Placed Successfully"});
+        res.status(201).json({message: "Order Sent"});
     } catch (err) {
         res.status(500).json({message: `Order failed to placed. ${err}`});
     }
