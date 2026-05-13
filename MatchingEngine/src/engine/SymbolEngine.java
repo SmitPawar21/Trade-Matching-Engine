@@ -68,5 +68,10 @@ public class SymbolEngine {
         matchingThread.interrupt();
     }
     
+    public OrderBook getOrderBook() {
+
+        return orderBook;
+    }
+    
     
 }

@@ -11,10 +11,15 @@ import java.util.Date;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import agent.MarketAgent;
+import agent.MarketStateProvider;
+import agent.OrderBookStateProvider;
+import agent.RuleBasedMarketMaker;
 import model.Order;
 import model.OrderSide;
 import model.OrderStatus;
 import model.OrderType;
+import simulation.MarketMakerRunner;
 import transport.EngineSocketServer;
 
 public class MatchingEngineApp {
@@ -37,11 +42,20 @@ public class MatchingEngineApp {
 
             // 4. Start TCP socket server
             EngineSocketServer server =
-                    new EngineSocketServer(
-                            manager
-                    );
+                new EngineSocketServer(
+                        manager
+                );
 
             server.start();
+            
+            MarketAgent agent = new RuleBasedMarketMaker();
+            
+            MarketStateProvider stateProvider = new OrderBookStateProvider(manager);
+            
+            MarketMakerRunner btcRunner =
+                new MarketMakerRunner(manager, agent, stateProvider, "BTC");
+            
+            btcRunner.start();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

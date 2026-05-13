@@ -4,6 +4,7 @@ import java.util.*;
 
 import event.CancelOrderEvent;
 import event.EngineResponsePublisher;
+import event.ErrorEvent;
 import event.NewOrderEvent;
 import model.Order;
 
@@ -26,7 +27,14 @@ public class EngineManager {
         SymbolEngine engine = engines.get(order.getSymbol());
 
         if (engine == null) {
-            throw new RuntimeException("No engine for symbol: " + order.getSymbol());
+        	publisher.publish(
+        	        new ErrorEvent(
+        	                "No engine for symbol: "
+        	                + order.getSymbol()
+        	        )
+        	);
+
+        	return;
         }
 
         engine.submitEvent(new NewOrderEvent(order, publisher));
@@ -37,10 +45,25 @@ public class EngineManager {
         SymbolEngine engine = engines.get(symbol);
 
         if (engine == null) {
-            throw new RuntimeException("No engine for symbol: " + symbol);
+        	publisher.publish(
+        	        new ErrorEvent(
+        	                "No engine for symbol: "
+        	                + symbol
+        	        )
+        	);
+
+        	return;
         }
 
         engine.submitEvent(new CancelOrderEvent(symbol, orderId, publisher));
+    }
+    
+    public SymbolEngine getEngine(
+            String symbol) {
+
+        return engines.get(
+                symbol
+        );
     }
 
 }

@@ -15,6 +15,7 @@ import model.OrderSide;
 import model.OrderStatus;
 import model.OrderType;
 import transport.dto.EngineRequest;
+import transport.dto.Envelope;
 
 // Exact flow
 //		JSON
@@ -45,6 +46,9 @@ public class ClientHandler implements Runnable {
     
     @Override
     public void run() {
+    	System.out.println(
+    	        "ClientHandler started"
+    	);
     	try (
                 BufferedReader reader =
                     new BufferedReader(
@@ -67,24 +71,36 @@ public class ClientHandler implements Runnable {
     		String line;
 
             while ((line = reader.readLine()) != null) {
+            	System.out.println("RAW FROM NODE: " + line);
+            	Envelope envelope =
+            		    mapper.readValue(
+            		        line,
+            		        Envelope.class
+            		    );
 
-                EngineRequest request =
-                    mapper.readValue(
-                        line,
-                        EngineRequest.class
-                    );
-
-                processRequest(request, publisher);
+            		processRequest(
+            		    envelope,
+            		    publisher
+            		);
             }
     	} catch (Exception e) {
             e.printStackTrace();
         }
     }
     
-    private void processRequest(EngineRequest request, EngineResponsePublisher publisher) {
+    private void processRequest(
+            Envelope envelope,
+            EngineResponsePublisher publisher) {
+    	
+    	System.out.println("TYPE: " + envelope.getType());
+    	
+    	String messageType =
+    	        envelope.getType();
 
-        if ("NEW_ORDER".equals(
-                request.getType())) {
+    	EngineRequest request =
+    	        envelope.getData();
+
+        if ("NEW_ORDER".equals(messageType)) {
 
             Order order = new Order(
                 request.getOrderId(),
@@ -116,9 +132,7 @@ public class ClientHandler implements Runnable {
             );
         }
 
-        else if ("CANCEL_ORDER".equals(
-                request.getType())) {
-
+        else if ("CANCEL_ORDER".equals(messageType)) {
             engineManager.cancelOrder(
                     request.getSymbol(),
                     request.getOrderId(),

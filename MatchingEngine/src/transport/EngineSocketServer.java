@@ -13,8 +13,7 @@ public class EngineSocketServer {
 	}
 	
 	public void start() throws Exception {
-        ServerSocket server =
-                new ServerSocket(9090);
+        ServerSocket server = new ServerSocket(9090);
 
         System.out.println(
                 "Java Engine listening on 9090"
@@ -22,6 +21,10 @@ public class EngineSocketServer {
 
         while (true) {
             Socket socket = server.accept();
+            System.out.println(
+                    "Node connected: "
+                    + socket.getRemoteSocketAddress()
+            );
             new Thread(
         		new ClientHandler(socket, engineManager)
             ).start();

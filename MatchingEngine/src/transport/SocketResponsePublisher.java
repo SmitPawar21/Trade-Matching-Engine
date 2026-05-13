@@ -23,6 +23,8 @@ public class SocketResponsePublisher implements EngineResponsePublisher {
     public void publish(EngineResponse response) {
     	try {
     		String json = mapper.writeValueAsString(response);
+    		System.out.println("SENDING TO NODE...");
+    		System.out.println(json);
     		writer.println(json);
     		writer.flush();
     	} catch (Exception e) {
