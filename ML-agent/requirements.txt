@@ -1,5 +1,4 @@
-torch
 gymnasium
 numpy
 pandas
-Matplotlib
+matplotlib

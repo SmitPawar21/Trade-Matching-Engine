@@ -16,6 +16,8 @@ public class EngineRequest {
     private long price;
 
     private long quantity;
+    
+    private int actionIdx;
 
     public EngineRequest() {
     }
@@ -83,4 +85,12 @@ public class EngineRequest {
     public void setQuantity(long quantity) {
         this.quantity = quantity;
     }
+
+	public int getActionIdx() {
+		return actionIdx;
+	}
+
+	public void setActionIdx(int actionIdx) {
+		this.actionIdx = actionIdx;
+	}
 }

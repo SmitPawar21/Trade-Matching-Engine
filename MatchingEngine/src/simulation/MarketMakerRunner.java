@@ -16,22 +16,17 @@ import model.OrderStatus;
 import model.OrderType;
 
 public class MarketMakerRunner {
-	private final EngineManager
-    engineManager;
+	private final EngineManager engineManager;
 
-	private final MarketAgent
-    agent;
+	private final MarketAgent agent;
 
 	private final MarketStateProvider stateProvider;
 
 	private final String symbol;
 	
-	private final ScheduledExecutorService
-    scheduler =
-    Executors.newSingleThreadScheduledExecutor();
+	private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-	private long orderIdCounter =
-    100000;
+	private long orderIdCounter = 100000;
 
 	public MarketMakerRunner(EngineManager engineManager, MarketAgent agent, MarketStateProvider stateProvider,
 			String symbol) {
@@ -50,6 +45,15 @@ public class MarketMakerRunner {
 		try {
 			MarketState state = stateProvider.getState(symbol);
 			AgentAction action = agent.decide(state);
+			
+			System.out.println("STATE OF SYMBOL ->"+
+				" Symbol: "+symbol+
+				" | BestBid: "+state.getBestBid()+
+				" | BestAsk: "+state.getBestAsk()+
+				" | Spread: "+state.getSpread()+
+				" | Mid Price: "+state.getMidPrice()
+			);
+			
 			placeQuotes(state, action);
 			
 		} catch (Exception e) {
@@ -79,25 +83,14 @@ public class MarketMakerRunner {
                 break;
 		}
 		
-		submitOrder(
-                OrderSide.BUY,
-                bidPrice
-        );
+		submitOrder(OrderSide.BUY,bidPrice);
 
-
-        submitOrder(
-                OrderSide.SELL,
-                askPrice
-        );
+        submitOrder(OrderSide.SELL,askPrice);
 	}
 	
 	private void submitOrder(OrderSide side, long price) {
 		Order order = new Order(orderIdCounter++, symbol, -1, side, OrderType.LIMIT, price, 10, 10, OrderStatus.NEW, new Date());
-		engineManager
-        .submitOrder(
-                order,
-                null
-        );
+		engineManager.submitOrder(order,null);
 	}
 	
 }

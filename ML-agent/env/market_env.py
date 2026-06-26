@@ -5,96 +5,185 @@ import json
 
 from gymnasium import spaces
 
-class MarketMakingEnv(gym.Env):
 
-    def __init__(self):
+class MarketMakingEnv(gym.Env):
+    """
+    Gymnasium environment for RL market-making agent.
+
+    Connects to the Java matching engine via TCP socket.
+    Observation space: [spread, inventory, imbalance, midPrice]
+    Action space: Discrete(5)
+        0 = TIGHT_SPREAD
+        1 = WIDE_SPREAD
+        2 = AGGRESSIVE_BUY
+        3 = AGGRESSIVE_SELL
+        4 = CANCEL_QUOTES
+
+    Episode terminates when Java returns done=True (triggered by
+    max steps, inventory limit, or PnL floor exceeded).
+    """
+
+    metadata = {"render_modes": []}
+
+    def __init__(self, symbol="BTC", host="localhost", port=9090):
         super().__init__()
 
+        self.symbol = symbol
+        self.host = host
+        self.port = port
+
+        # 5 discrete actions
         self.action_space = spaces.Discrete(5)
+
+        # Observation: [spread, inventory, imbalance, midPrice]
         self.observation_space = spaces.Box(
-            low=-100000,
-            high=100000,
+            low=-np.inf,
+            high=np.inf,
             shape=(4,),
             dtype=np.float32
         )
+
+        self.sock = None
+        self.buffer = ""
+        self.prev_realized_pnl = 0.0
+        self.current_step = 0
+
+    def _connect(self):
+        """Establish TCP connection to Java engine."""
+        if self.sock is not None:
+            try:
+                self.sock.close()
+            except Exception:
+                pass
+
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        
-        self.sock.connect(
-            ("localhost", 9005)
-        )
-        self.inventory = 0
-    
-    def reset(self,seed=None,options=None):
-        request = {"type": "RESET_EPISODE"}
+        self.sock.connect((self.host, self.port))
+        self.buffer = ""
 
-        self._send(request)
-        response = self._receive()
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
 
-        self.inventory = 0
+        # Reconnect on each episode reset for clean state
+        self._connect()
 
-        state = np.array([
-            response["spread"],
-            response["inventory"],
-            response["imbalance"],
-            response["midPrice"]
-        ],dtype=np.float32)
-
-        return state, {}
-
-    def step(self, action):
+        # Send RESET_RL to Java to reset the RLStateTracker
         request = {
-            "type": "RL_ACTION",
+            "type": "RESET_RL",
             "data": {
-                "symbol": "BTC",
-                "action": int(action)
+                "symbol": self.symbol
             }
         }
 
         self._send(request)
         response = self._receive()
 
-        # updated state from Java
-        spread = response["spread"]
-        inventory = response["inventory"]
-        imbalance = response["imbalance"]
-        mid_price = response["midPrice"]
+        self.prev_realized_pnl = 0.0
+        self.current_step = 0
 
-        # execution info
-        realized_pnl = response["realizedPnl"]
-        filled_qty = response["filledQty"]
-        done = response["done"]
+        state = self._extract_state(response)
+        return state, {}
 
-        # reward
-        reward = 0
+    def step(self, action):
+        request = {
+            "type": "PLACE_RL_ORDER",
+            "data": {
+                "symbol": self.symbol,
+                "actionIdx": int(action)
+            }
+        }
 
-        # pnl reward
-        reward += realized_pnl
+        self._send(request)
+        response = self._receive()
 
-        # inventory risk penalty
-        reward -= (abs(inventory) * 0.05)
+        self.current_step += 1
 
-        # encourage liquidity
-        if filled_qty > 0:
-            reward += 1
+        # Extract observation
+        state = self._extract_state(response)
 
-        next_state = np.array(
-            [
-                spread,
-                inventory,
-                imbalance,
-                mid_price
-            ],
-            dtype=np.float32
-        )
+        # --- Reward Computation ---
+        spread = response.get("spread", 0)
+        inventory = response.get("inventory", 0)
+        realized_pnl = response.get("realizedPnL", 0)
+        unrealized_pnl = response.get("unrealizedPnL", 0)
+        recent_trades = response.get("recentTrades", 0)
 
-        return next_state, reward, done, False, {}
-    
-    
-    def _send(self,data):
+        reward = 0.0
+
+        # 1. Realized PnL delta (reward for profitable trades)
+        pnl_delta = realized_pnl - self.prev_realized_pnl
+        reward += pnl_delta * 0.01  # Scale down since prices are in 100000s range
+        self.prev_realized_pnl = realized_pnl
+
+        # 2. Unrealized PnL (mark-to-market)
+        reward += unrealized_pnl * 0.001
+
+        # 3. Inventory risk penalty (quadratic)
+        reward -= (inventory ** 2) * 0.001
+
+        # 4. Liquidity provision reward
+        if recent_trades > 0:
+            reward += 0.5
+
+        # 5. Spread tightening bonus
+        if spread > 0 and spread < 300:
+            reward += 0.1
+
+        # --- Episode Termination ---
+        # Java side tracks done via RLStateTracker
+        done = response.get("done", False)
+
+        terminated = done
+        truncated = False
+
+        info = {
+            "spread": spread,
+            "inventory": inventory,
+            "realized_pnl": realized_pnl,
+            "unrealized_pnl": unrealized_pnl,
+            "recent_trades": recent_trades,
+            "step": self.current_step
+        }
+
+        return state, reward, terminated, truncated, info
+
+    def _extract_state(self, response):
+        """Extract the 4-dimensional observation vector from Java response."""
+        return np.array([
+            response.get("spread", 0),
+            response.get("inventory", 0),
+            response.get("imbalance", 0),
+            response.get("midPrice", 0)
+        ], dtype=np.float32)
+
+    def _send(self, data):
+        """Send a JSON message to Java engine (newline-delimited)."""
         message = json.dumps(data) + "\n"
         self.sock.sendall(message.encode())
 
     def _receive(self):
-        data = self.sock.recv(4096).decode()
-        return json.loads(data)
-        
+        """
+        Receive a complete JSON line from Java engine.
+        Handles TCP fragmentation by buffering until newline.
+        """
+        while "\n" not in self.buffer:
+            chunk = self.sock.recv(4096).decode()
+            if not chunk:
+                raise ConnectionError("Java engine closed connection")
+            self.buffer += chunk
+
+        line, self.buffer = self.buffer.split("\n", 1)
+        line = line.strip()
+
+        if not line:
+            return self._receive()
+
+        return json.loads(line)
+
+    def close(self):
+        """Clean up socket connection."""
+        if self.sock is not None:
+            try:
+                self.sock.close()
+            except Exception:
+                pass
+            self.sock = None

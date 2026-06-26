@@ -8,6 +8,8 @@ import event.CancelOrderEvent;
 import event.EngineEvent;
 import event.EngineResponsePublisher;
 import event.NewOrderEvent;
+import event.NoOpPublisher;
+import model.Order;
 
 public class SymbolEngine {
 	private final String symbol;
@@ -22,6 +24,16 @@ public class SymbolEngine {
 		this.symbol = symbol;
 		this.orderBook = new OrderBook();
 	    this.queue = new LinkedBlockingQueue<>();
+	}
+	
+	/**
+	 * Synchronously inject an order into the book.
+	 * Call ONLY during startup seeding, before external traffic arrives.
+	 * Bypasses the async event queue — safe because matching thread
+	 * is blocked on queue.take() and no external events exist yet.
+	 */
+	public void seedOrder(Order order) {
+		orderBook.processNewOrder(order, NoOpPublisher.INSTANCE);
 	}
 	
 	public void start() {

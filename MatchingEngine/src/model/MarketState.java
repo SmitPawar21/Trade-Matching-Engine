@@ -15,12 +15,17 @@ public class MarketState {
     
     private int inventory;          // how many coins agent holds
     private double unrealizedPnL;   // mark-to-market profit
+    private double realizedPnL;     // locked-in profit from closed positions
     private int recentTrades;       // trades in last N ticks
     private double imbalance;       // (bidVol-askVol)/(bidVol+askVol)
+    
+    private boolean done;           // episode termination flag for RL
+    
+    public MarketState() {}
 
 	public MarketState(double bestBid, double bestAsk, double spread, int bidVolume, int askVolume,
-			double lastTradePrice, double midPrice, int inventory, double unrealizedPnL, int recentTrades,
-			double imbalance) {
+			double lastTradePrice, double midPrice, int inventory, double unrealizedPnL, double realizedPnL,
+			int recentTrades, double imbalance, boolean done) {
 		super();
 		this.bestBid = bestBid;
 		this.bestAsk = bestAsk;
@@ -31,8 +36,10 @@ public class MarketState {
 		this.midPrice = midPrice;
 		this.inventory = inventory;
 		this.unrealizedPnL = unrealizedPnL;
+		this.realizedPnL = realizedPnL;
 		this.recentTrades = recentTrades;
 		this.imbalance = imbalance;
+		this.done = done;
 	}
 
 	public int getInventory() {
@@ -49,6 +56,14 @@ public class MarketState {
 
 	public void setUnrealizedPnL(double unrealizedPnL) {
 		this.unrealizedPnL = unrealizedPnL;
+	}
+
+	public double getRealizedPnL() {
+		return realizedPnL;
+	}
+
+	public void setRealizedPnL(double realizedPnL) {
+		this.realizedPnL = realizedPnL;
 	}
 
 	public int getRecentTrades() {
@@ -122,6 +137,30 @@ public class MarketState {
 	public void setMidPrice(double midPrice) {
 		this.midPrice = midPrice;
 	}
+	
+	public boolean isDone() {
+		return done;
+	}
+
+	public void setDone(boolean done) {
+		this.done = done;
+	}
     
-    
+    public String print() {
+    	return
+    			"BEST BID = "+this.bestBid+
+    		    " | BEST ASK = "+this.bestAsk+
+    		    " | SPREAD = "+this.spread+
+    		    " | BID VOLUME = "+this.bidVolume+
+    		    " | ASK VOLUME = "+this.askVolume+
+    		    " | Last Trade Price = "+this.lastTradePrice+
+    		    " | Mid Price = "+this.midPrice+
+    		    " | Inventory = "+this.inventory+       
+    		    " | UnrealizedPnL = "+this.unrealizedPnL+ 
+    		    " | RealizedPnL = "+this.realizedPnL+
+    		    " | RecentTrades = "+this.recentTrades+       
+    		    " | Imbalance = "+this.imbalance+
+    		    " | Done = "+this.done
+    	;
+    }
 }

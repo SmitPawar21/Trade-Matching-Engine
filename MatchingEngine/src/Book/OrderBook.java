@@ -45,22 +45,15 @@ public class OrderBook {
 	        return "INVALID_QUANTITY";
 	    }
 
-	    if (order.getRemainingQuantity()
-	            != order.getQuantity()) {
-
+	    if (order.getRemainingQuantity() != order.getQuantity()) {
 	        return "INVALID_REMAINING_QUANTITY";
 	    }
 
-	    if (order.getType() == OrderType.LIMIT
-	            &&
-	            order.getPrice() <= 0) {
-
+	    if (order.getType() == OrderType.LIMIT && order.getPrice() <= 0) {
 	        return "INVALID_PRICE";
 	    }
 
-	    if (cancelMap.containsKey(
-	            order.getOrderId())) {
-
+	    if (cancelMap.containsKey(order.getOrderId())) {
 	        return "DUPLICATE_ORDER_ID";
 	    }
 
@@ -202,7 +195,8 @@ public class OrderBook {
 	    		);
 	    
 	    System.out.println("TRADE EXECUTED -> " +
-	            "Price: " + tradePrice +
+	    		"Symbol: "+buyOrder.getSymbol()+
+	            " | Price: " + tradePrice +
 	            " | Quantity: " + tradeQty +
 	            " | BuyOrderId: " + buyOrder.getOrderId() +
 	            " | SellOrderId: " + sellOrder.getOrderId());
@@ -295,6 +289,14 @@ public class OrderBook {
 		for(Long key : asks.keySet()) {
 			System.out.println(key+" -> "+asks.get(key));
 		}
+	}
+	
+	public TreeMap<Long, PriceLevel> getBids() {
+		return bids;
+	}
+
+	public TreeMap<Long, PriceLevel> getAsks() {
+		return asks;
 	}
 	
 }
