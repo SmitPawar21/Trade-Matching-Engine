@@ -21,11 +21,6 @@ def relu(x):
     return np.maximum(0, x)
 
 
-def relu_derivative(x):
-    """Derivative of ReLU (used during backprop)."""
-    return (x > 0).astype(np.float64)
-
-
 def softmax(x):
     """Numerically stable softmax."""
     shifted = x - np.max(x, axis=-1, keepdims=True)
@@ -103,23 +98,73 @@ class MLP:
         self.num_layers = len(self.weights)
 
     def forward(self, x):
-        """Forward pass. Returns (output, cache) for backprop."""
-        cache = {"inputs": [x]}
-        h = x.astype(np.float64)
+        """
+        Forward pass. Returns (output, cache) for backprop.
 
+        Cache stores pre-activation (z) and post-activation (a) for each layer.
+        """
+        x = np.atleast_2d(x).astype(np.float64)
+        cache = {"a": [x]}  # a[0] = input
+
+        h = x
         for i in range(self.num_layers - 1):
             z = h @ self.weights[i] + self.biases[i]
             h = relu(z)
-            cache["inputs"].append(h)
             cache[f"z_{i}"] = z
+            cache["a"].append(h)
 
         # Output layer (no activation)
-        output = h @ self.weights[-1] + self.biases[-1]
-        cache["inputs"].append(output)
-        return output, cache
+        z_out = h @ self.weights[-1] + self.biases[-1]
+        cache[f"z_{self.num_layers - 1}"] = z_out
+        cache["a"].append(z_out)
+
+        return z_out, cache
+
+    def backward(self, d_output, cache):
+        """
+        Backward pass using analytical gradients.
+
+        Args:
+            d_output: gradient of loss w.r.t. network output, shape (batch, output_dim)
+            cache: dictionary from forward pass
+
+        Returns:
+            grads: list of gradients [dW0, db0, dW1, db1, ...] matching get_params() order
+        """
+        batch_size = d_output.shape[0]
+        grads_w = []
+        grads_b = []
+
+        delta = d_output  # Start from output layer
+
+        # Backprop through layers in reverse
+        for i in range(self.num_layers - 1, -1, -1):
+            a_prev = cache["a"][i]  # Input to this layer
+
+            # Gradients for this layer's parameters
+            dW = (a_prev.T @ delta) / batch_size
+            db = np.mean(delta, axis=0)
+
+            grads_w.insert(0, dW)
+            grads_b.insert(0, db)
+
+            # Gradient to pass to previous layer (skip for first layer)
+            if i > 0:
+                delta = delta @ self.weights[i].T
+                # ReLU derivative: gradient is zero where pre-activation was <= 0
+                z_prev = cache[f"z_{i - 1}"]
+                delta = delta * (z_prev > 0).astype(np.float64)
+
+        # Interleave weights and biases to match get_params() order
+        grads = []
+        for dw, db in zip(grads_w, grads_b):
+            grads.append(dw)
+            grads.append(db)
+
+        return grads
 
     def get_params(self):
-        """Return flat list of all parameters."""
+        """Return flat list of all parameters: [W0, b0, W1, b1, ...]."""
         params = []
         for w, b in zip(self.weights, self.biases):
             params.append(w)
@@ -216,11 +261,15 @@ class PPOAgent:
         logits, _ = self.policy_net.forward(obs)
         probs = softmax(logits)[0]
 
+        # Clamp probabilities to avoid numerical issues
+        probs = np.clip(probs, 1e-8, 1.0)
+        probs = probs / probs.sum()
+
         # Sample action
         action = self.rng.choice(self.n_actions, p=probs)
 
         # Log probability
-        log_prob = np.log(probs[action] + 1e-10)
+        log_prob = np.log(probs[action])
 
         # Value estimate
         value, _ = self.value_net.forward(obs)
@@ -252,110 +301,120 @@ class PPOAgent:
         for t in reversed(range(n)):
             if t == n - 1:
                 next_value = last_value
-                next_non_terminal = 1.0 - float(dones[t])
             else:
                 next_value = values[t + 1]
-                next_non_terminal = 1.0 - float(dones[t])
 
+            next_non_terminal = 1.0 - float(dones[t])
             delta = rewards[t] + self.gamma * next_value * next_non_terminal - values[t]
-            advantages[t] = last_gae = delta + self.gamma * self.gae_lambda * next_non_terminal * last_gae
+            advantages[t] = last_gae = (
+                delta + self.gamma * self.gae_lambda * next_non_terminal * last_gae
+            )
 
         returns = advantages + np.array(values, dtype=np.float64)
         return advantages, returns
 
-    def _policy_backward(self, obs_batch, actions_batch, old_log_probs, advantages):
+    def _compute_policy_grads(self, obs_batch, actions_batch, old_log_probs, advantages):
         """
-        Compute policy loss gradients using the PPO clipped surrogate objective.
+        Compute policy gradients using analytical backpropagation.
 
-        Uses numerical differentiation (finite differences) for robustness.
+        PPO clipped surrogate objective with entropy bonus.
         """
-        params = self.policy_net.get_params()
+        batch_size = len(obs_batch)
 
-        def policy_loss_fn(params_list):
-            """Compute PPO clipped policy loss for given parameters."""
-            self.policy_net.set_params(params_list)
+        # Forward pass
+        logits, cache = self.policy_net.forward(obs_batch)
+        probs = softmax(logits)
+        log_probs_all = log_softmax(logits)
 
-            logits, _ = self.policy_net.forward(obs_batch)
-            log_probs_all = log_softmax(logits)
-            probs_all = softmax(logits)
+        # Gather log probs for taken actions
+        new_log_probs = log_probs_all[np.arange(batch_size), actions_batch]
 
-            # Gather log probs for taken actions
-            new_log_probs = log_probs_all[np.arange(len(actions_batch)), actions_batch]
+        # Ratio: exp(new_log_prob - old_log_prob)
+        ratio = np.exp(new_log_probs - old_log_probs)
 
-            # Ratio
-            ratio = np.exp(new_log_probs - old_log_probs)
+        # Clipped surrogate objective
+        surr1 = ratio * advantages
+        surr2 = np.clip(ratio, 1 - self.clip_range, 1 + self.clip_range) * advantages
 
-            # Clipped surrogate
-            surr1 = ratio * advantages
-            surr2 = np.clip(ratio, 1 - self.clip_range, 1 + self.clip_range) * advantages
-            policy_loss = -np.mean(np.minimum(surr1, surr2))
+        # Determine which surrogate to use per sample
+        use_clipped = surr2 < surr1
+        effective_ratio_grad = np.where(
+            use_clipped,
+            np.clip(ratio, 1 - self.clip_range, 1 + self.clip_range),
+            ratio,
+        )
 
-            # Entropy bonus (encourages exploration)
-            entropy = -np.sum(probs_all * log_probs_all, axis=-1)
-            entropy_loss = -np.mean(entropy)
+        # d(loss)/d(log_prob_action) for policy loss
+        # loss = -mean(min(surr1, surr2))
+        # d(surr)/d(new_log_prob) = ratio * advantage (since d(ratio)/d(logp) = ratio)
+        # But for clipped: gradient is 0 when clipped
+        clip_mask = (ratio >= 1 - self.clip_range) & (ratio <= 1 + self.clip_range)
+        d_ratio = np.where(
+            use_clipped & ~clip_mask,
+            0.0,  # Clipped and outside range -> zero gradient
+            ratio * advantages,
+        )
+        # For unclipped case, gradient flows normally
+        d_ratio = np.where(use_clipped, 0.0, ratio * advantages)
+        # Simpler: when clip is active AND ratio is outside bounds, grad is 0
+        # When clip is not active, grad = ratio * advantage
+        d_logp = -d_ratio / batch_size  # negative because we minimize
 
-            return policy_loss + self.ent_coef * entropy_loss
+        # Entropy bonus gradient
+        # entropy = -sum(p * log_p), we want to maximize entropy
+        # d(entropy_loss)/d(logits) = p * (log_p + 1) - but applied as penalty
+        entropy_grad = self.ent_coef * probs * (log_probs_all + 1) / batch_size
 
-        # Numerical gradient via finite differences
-        eps = 1e-5
-        grads = []
-        base_loss = policy_loss_fn(params)
+        # Combined gradient w.r.t. logits
+        # d(loss)/d(logits) via d(loss)/d(log_prob_action)
+        # d(log_softmax_j)/d(logit_k) = 1(j==k) - softmax(k)
+        d_logits = np.zeros_like(logits)
 
-        for i, p in enumerate(params):
-            grad = np.zeros_like(p)
-            it = np.nditer(p, flags=["multi_index"])
-            while not it.finished:
-                idx = it.multi_index
-                old_val = p[idx]
+        # Policy gradient contribution
+        for i in range(batch_size):
+            a = actions_batch[i]
+            # d(log_prob_a)/d(logit_k) = 1(a==k) - prob_k
+            d_log_prob_d_logits = -probs[i].copy()
+            d_log_prob_d_logits[a] += 1.0
+            d_logits[i] = d_logp[i] * d_log_prob_d_logits
 
-                p[idx] = old_val + eps
-                loss_plus = policy_loss_fn(params)
+        # Add entropy gradient
+        d_logits += entropy_grad
 
-                p[idx] = old_val
-                grad[idx] = (loss_plus - base_loss) / eps
+        # Backprop through network
+        grads = self.policy_net.backward(d_logits, cache)
 
-                it.iternext()
-            grads.append(grad)
+        # Compute loss for logging
+        policy_loss = -np.mean(np.minimum(surr1, surr2))
+        entropy = -np.sum(probs * log_probs_all, axis=-1).mean()
+        total_loss = policy_loss - self.ent_coef * entropy
 
-        # Restore original params
-        self.policy_net.set_params(params)
-        return grads, base_loss
+        return grads, total_loss
 
-    def _value_backward(self, obs_batch, returns):
+    def _compute_value_grads(self, obs_batch, returns):
         """
-        Compute value loss gradients (MSE loss).
+        Compute value network gradients using analytical backpropagation.
 
-        Uses numerical differentiation.
+        MSE loss: 0.5 * mean((V(s) - R)^2)
         """
-        params = self.value_net.get_params()
+        # Forward pass
+        values, cache = self.value_net.forward(obs_batch)
+        values = values[:, 0]  # (batch,)
 
-        def value_loss_fn(params_list):
-            self.value_net.set_params(params_list)
-            values, _ = self.value_net.forward(obs_batch)
-            return 0.5 * np.mean((values[:, 0] - returns) ** 2)
+        # MSE loss
+        loss = 0.5 * np.mean((values - returns) ** 2)
 
-        eps = 1e-5
-        grads = []
-        base_loss = value_loss_fn(params)
+        # d(loss)/d(values) = (values - returns) / batch_size
+        batch_size = len(returns)
+        d_values = (values - returns) / batch_size  # (batch,)
 
-        for i, p in enumerate(params):
-            grad = np.zeros_like(p)
-            it = np.nditer(p, flags=["multi_index"])
-            while not it.finished:
-                idx = it.multi_index
-                old_val = p[idx]
+        # Reshape for backprop: (batch, 1)
+        d_output = d_values.reshape(-1, 1)
 
-                p[idx] = old_val + eps
-                loss_plus = value_loss_fn(params)
+        # Backprop through network
+        grads = self.value_net.backward(d_output, cache)
 
-                p[idx] = old_val
-                grad[idx] = (loss_plus - base_loss) / eps
-
-                it.iternext()
-            grads.append(grad)
-
-        self.value_net.set_params(params)
-        return grads, base_loss
+        return grads, loss
 
     def _clip_gradients(self, grads):
         """Clip gradients by global norm."""
@@ -398,8 +457,8 @@ class PPOAgent:
                 ret_batch = ret_buf[batch_idx]
                 adv_batch = adv_buf[batch_idx]
 
-                # Policy update
-                policy_grads, p_loss = self._policy_backward(
+                # Policy update (analytical backprop)
+                policy_grads, p_loss = self._compute_policy_grads(
                     obs_batch, act_batch, logp_batch, adv_batch
                 )
                 policy_grads = self._clip_gradients(policy_grads)
@@ -408,10 +467,9 @@ class PPOAgent:
                 )
                 self.policy_net.set_params(new_policy_params)
 
-                # Value update
-                value_grads, v_loss = self._value_backward(obs_batch, ret_batch)
+                # Value update (analytical backprop)
+                value_grads, v_loss = self._compute_value_grads(obs_batch, ret_batch)
                 value_grads = self._clip_gradients(value_grads)
-                # Scale value gradients by vf_coef
                 value_grads = [g * self.vf_coef for g in value_grads]
                 new_value_params = self.value_optimizer.step(
                     self.value_net.get_params(), value_grads
