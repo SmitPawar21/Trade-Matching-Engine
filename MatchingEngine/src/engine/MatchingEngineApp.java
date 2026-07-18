@@ -57,8 +57,8 @@ public class MatchingEngineApp {
             MarketMakerRunner btcRunner = new MarketMakerRunner(manager, agent, stateProvider, "BTC");
             MarketMakerRunner ethRunner = new MarketMakerRunner(manager, agent, stateProvider, "ETH");
             
-        //    btcRunner.start();
-        //    ethRunner.start();
+            btcRunner.start();
+            ethRunner.start();
             
             
 		} catch (Exception e) {

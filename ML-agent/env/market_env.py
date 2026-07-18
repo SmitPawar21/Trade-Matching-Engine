@@ -149,10 +149,10 @@ class MarketMakingEnv(gym.Env):
     def _extract_state(self, response):
         """Extract the 4-dimensional observation vector from Java response."""
         return np.array([
-            response.get("spread", 0),
-            response.get("inventory", 0),
+            response.get("spread", 0) / 100.0,
+            response.get("inventory", 0) / 100.0,
             response.get("imbalance", 0),
-            response.get("midPrice", 0)
+            response.get("midPrice", 0) / 100000.0
         ], dtype=np.float32)
 
     def _send(self, data):

@@ -62,8 +62,18 @@ public class MarketMakerRunner {
 	}
 	
 	private void placeQuotes(MarketState state, AgentAction action) {
+		// CANCEL_QUOTES means do nothing — don't place any orders
+		if (action == AgentAction.CANCEL_QUOTES) {
+			return;
+		}
+
 		long bidPrice = (long) state.getBestBid();
 		long askPrice = (long) state.getBestAsk();
+
+		// Safety: skip if either side of the book is empty
+		if (bidPrice <= 0 || askPrice <= 0) {
+			return;
+		}
 		
 		switch(action) {
 			case TIGHT_SPREAD:
