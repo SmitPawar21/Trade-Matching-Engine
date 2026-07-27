@@ -1,0 +1,70 @@
+# ----------------------------
+# Core Scientific Computing
+# ----------------------------
+# Let Colab use its default numpy, pandas, scipy
+# numpy
+# pandas
+# scipy
+polars
+pyarrow
+
+# ----------------------------
+# Reinforcement Learning
+# ----------------------------
+gymnasium
+stable-baselines3
+# Let Colab use its default torch
+# torch
+
+# ----------------------------
+# Feature Engineering
+# ----------------------------
+pandas-ta
+ta
+
+# ----------------------------
+# Hyperparameter Optimization
+# ----------------------------
+optuna
+
+# ----------------------------
+# Configuration
+# ----------------------------
+hydra-core
+omegaconf
+
+# ----------------------------
+# Model Export
+# ----------------------------
+onnx
+onnxruntime
+
+# ----------------------------
+# Logging & Visualization
+# ----------------------------
+tensorboard
+# Let Colab use its default matplotlib, plotly, tqdm
+# matplotlib
+# plotly
+# tqdm
+
+# ----------------------------
+# Machine Learning Utilities
+# ----------------------------
+# scikit-learn
+
+# ----------------------------
+# Networking
+# ----------------------------
+websockets
+
+# ----------------------------
+# Data Formats
+# ----------------------------
+requests
+orjson
+
+# ----------------------------
+# Testing
+# ----------------------------
+pytest

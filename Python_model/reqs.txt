@@ -1,0 +1,188 @@
+Project structure:
+Python_model/
+├── configs/
+│   ├── train.yaml
+│   ├── reward.yaml
+│   ├── env.yaml
+│   └── model.yaml
+│
+├── data/
+│   ├── raw/
+│   ├── processed/
+│   └── features/
+│
+├── env/
+│   ├── market_env.py
+│   ├── observation.py
+│   ├── reward.py
+│   ├── actions.py
+│   └── orderbook.py
+│
+├── agents/
+│   ├── train.py
+│   ├── evaluate.py
+│   ├── export_onnx.py
+│   └── inference.py
+│
+├── features/
+│   ├── indicators.py
+│   ├── normalization.py
+│   └── engineering.py
+│
+├── callbacks/
+│
+├── logs/
+│
+├── models/
+│
+├── evaluation/
+│
+├── notebooks/
+│
+└── tests/
+
+Tech stack:
+| Layer                       | Library                              |
+| --------------------------- | ------------------------------------ |
+| Data loading                | pandas, polars, pyarrow              |
+| Numerical computing         | NumPy                                |
+| Deep learning               | PyTorch                              |
+| RL environment              | Gymnasium                            |
+| RL algorithms               | Stable-Baselines3                    |
+| Alternative RL framework    | Ray RLlib (for distributed training) |
+| Feature engineering         | pandas-ta, TA-Lib, SciPy             |
+| Hyperparameter optimization | Optuna                               |
+| Logging                     | TensorBoard, Weights & Biases        |
+| Experiment configuration    | Hydra, OmegaConf                     |
+| Model export                | ONNX, onnxruntime                    |
+| Visualization               | Matplotlib, Plotly                   |
+| Testing                     | pytest                               |
+
+Goal:
+Historical Data
+        │
+        ▼
+Feature Engineering
+        │
+        ▼
+Gymnasium Environment
+        │
+        ▼
+Stable Baselines3 / RLlib / CleanRL
+        │
+        ▼
+PPO / SAC / DQN / A2C
+        │
+        ▼
+Evaluation Pipeline
+        │
+        ▼
+Export → ONNX → Java Engine
+
+A market maker cares about: order flow, liquidity, spread, order book imbalance, execution probability, inventory management
+
+PHASE 1:
+1. The Processing Pipeline (engineering.py)
+This is the main orchestrator script. When executed, it automatically loops through every .csv file in your data/raw/ directory and applies the following steps sequentially:
+
+Loading Data: Reads the raw CSV.
+Standardization: Renames the core columns to standard capitalized names (Open, High, Low, Close, Volume) and sorts the entire dataset chronologically based on the time/date column.
+Missing Value Handling: Fills any gaps in the data by carrying the last known price forward (forward-fill), and then fills any remaining gaps backward (backward-fill).
+Intermediate Save: Saves this clean baseline dataset to data/processed/.
+
+2. Feature Engineering (indicators.py)
+Once the data is cleaned, the script generates new columns based on technical analysis (TA). Currently, we are using the pandas_ta library to append:
+
+Momentum: RSI (Relative Strength Index), MACD (Moving Average Convergence Divergence)
+Volatility: Bollinger Bands, ATR (Average True Range)
+Trend: SMA (Simple Moving Average - 20 period), EMA (Exponential Moving Average - 50 & 200 period)
+Returns: Logarithmic returns calculated from the Close price (useful for reward calculation in RL).
+(Note: Any rows at the very beginning of the dataset that get NaN values due to the lagging nature of these indicators are automatically dropped to maintain dataset integrity).
+
+        - RSI: 
+                RSI measures how strong recent buying is compared to recent selling.
+
+        - MACD: 
+                MACD is used to identify changes in the strength, direction, momentum, and duration of a trend in a stock's price.
+
+        - Bollinger Bands: 
+                Bollinger Bands are used to measure the market's volatility.
+
+        - ATR: 
+                ATR is used to measure the volatility of a stock's price.
+
+        - SMA: 
+                SMA is used to identify the trend of a stock's price.
+
+        - EMA: 
+                EMA is used to identify the trend of a stock's price.
+
+        - Logarithmic returns: 
+                Logarithmic returns are used to measure the returns of a stock's price.
+
+3. Normalization (normalization.py)
+Deep learning and RL models require scaled data to converge efficiently.
+
+Z-Score Normalization: The pipeline automatically applies Z-score normalization (Value - Mean) / Standard Deviation to all feature columns (like volume and the newly generated indicators).
+Preservation: It intentionally skips normalizing time columns and baseline price columns (Open, High, Low, Close) in case your Gymnasium environment needs to reference the exact raw prices for trade simulation.
+
+4. Final Output
+The fully processed DataFrame is saved to data/features/ with the _features.csv suffix (e.g., BTC_features.csv). This file is what your future RL agent will observe during training!
+
+PHASE 2
+1. Initialization (__init__)
+When the environment is first created, it sets up the entire world the agent will interact with:
+
+Data Loading: It loads the pre-processed historical data (e.g., BTC_features.csv). It specifically isolates the Close price to use as the execution price for trades, and stores the rest of the columns as the feature set.
+Component Setup: It instantiates the dedicated classes we created:
+Portfolio(initial_cash=10000.0)
+Simulator(fixed_trade_size=1.0)
+RewardCalculator()
+ObservationBuilder()
+Spaces Definition: Gym environments must define an action_space and observation_space. It fetches the Discrete(3) action space and the flattened Box observation space from our helper classes. This tells the RL algorithm exactly what shape the inputs and outputs should be.
+
+2. Resetting the Environment (reset)
+Before a new "episode" (training run) begins, the environment needs to be reset to a clean state.
+
+Random Starting Point: To prevent the agent from just memorizing the sequence of prices (overfitting), it picks a random starting row in the CSV file (self.start_index). The agent will trade for a maximum of 500 candles starting from this random point.
+State Reset: It completely resets the Portfolio back to the starting cash and 0 inventory, and resets the RewardCalculator's peak value trackers.
+Initial Observation: It asks the ObservationBuilder to combine the first row of market features with the newly reset portfolio state, returning the first observation to the agent.
+
+3. Taking a Step (step)
+This is the core loop of the environment. Every time the agent decides on an action (Buy, Sell, or Hold), this method is called:
+
+State Snapshot: It takes a snapshot of the portfolio before the trade happens.
+Execute Trade: It passes the agent's action and the current market price to the Simulator. The simulator handles the math (commissions, slippage) and updates the Portfolio's cash and inventory. It returns the fiat cost of the trade.
+Advance Time: The environment moves exactly one candle forward in history (self.current_step_idx += 1).
+Calculate Reward: It hands the old portfolio, the new portfolio, the trade costs, and the new price to the RewardCalculator. The calculator looks at how much the portfolio value changed ($\Delta PnL$) and subtracts penalties to return a single reward number.
+Build Next Observation: Just like in reset, it builds the new state array for the agent to look at for its next decision.
+Termination Checks: It checks if the episode should end:
+terminated: Returns True if the agent goes bankrupt (Cash $\le 0$ and Inventory $\le 0$).
+truncated: Returns True if the agent reaches the 500-step limit or reaches the very end of the CSV file.
+
+4. Helpers (_get_info and render)
+_get_info: RL frameworks allow you to pass a dictionary of extra information alongside the observation. This returns the exact cash, inventory, and PnL, which is incredibly useful for logging metrics into TensorBoard later.
+render: A simple print statement that spits out the current step, price, portfolio value, and inventory so you can watch the agent trade in the terminal (like you saw in your test script output!).
+This modular design means if you ever want to change how slippage works, you only touch simulator.py. If you want to change the penalty for holding inventory, you only touch reward.py, leaving this main environment logic perfectly intact!
+
+Phase 3 Implementation Complete: Training & Evaluation
+The full training and evaluation infrastructure for your market-making RL agent is now in place. We leveraged Stable-Baselines3 (PPO) to handle the complex algorithmic optimization, allowing us to focus entirely on the environment logic and metrics.
+
+What was built
+env/market_env.py
+: Updated the environment to accept pre-loaded Pandas DataFrames (data_df). This allows us to smoothly partition data into train and test sets outside of the environment without loading from disk twice.
+agents/train.py
+: A clean training script that wraps our environment in SB3's Monitor and DummyVecEnv, instantiates a PPO model with an MlpPolicy, and trains it on the first 80% of our data. It automatically saves the trained agent to models/.
+evaluation/metrics.py
+: A suite of financial calculators that process a backtest history to output:
+Total PnL & Total Return (%)
+Sharpe Ratio
+Max Drawdown
+Total Trades (with explicit Buy/Sell counts)
+evaluation/plots.py
+: A matplotlib visualizer that renders a beautiful 3-pane chart showing:
+The underlying asset price with Buy/Sell markers overlaid.
+The Equity Curve (portfolio value over time).
+The Agent's Inventory over time to track position accumulation.
+evaluation/backtest.py
+: The deterministic simulation engine. It loads the saved PPO model and runs it through the unseen 20% test data, compiling a step-by-step history that it passes to metrics.py and plots.py.
