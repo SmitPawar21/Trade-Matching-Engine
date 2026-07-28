@@ -61,11 +61,21 @@ class Portfolio:
         
     def get_state_array(self, current_price: float) -> np.ndarray:
         self.update_unrealized_pnl(current_price)
-        # Returns [Cash, Inventory, UnrealizedPnL, RealizedPnL, TotalValue]
+        
+        # Normalize variables based on initial cash to keep them roughly between -1 and 1
+        norm_cash = self.cash / self.initial_cash
+        # Max inventory is roughly initial_cash / current_price. So we scale it by that.
+        max_possible_inventory = self.initial_cash / current_price if current_price > 0 else 1.0
+        norm_inventory = self.inventory / max_possible_inventory
+        norm_unrealized = self.unrealized_pnl / self.initial_cash
+        norm_realized = self.realized_pnl / self.initial_cash
+        norm_total = self.get_portfolio_value(current_price) / self.initial_cash
+        
+        # Returns [Cash, Inventory, UnrealizedPnL, RealizedPnL, TotalValue] normalized
         return np.array([
-            self.cash,
-            self.inventory,
-            self.unrealized_pnl,
-            self.realized_pnl,
-            self.get_portfolio_value(current_price)
+            norm_cash,
+            norm_inventory,
+            norm_unrealized,
+            norm_realized,
+            norm_total
         ], dtype=np.float32)

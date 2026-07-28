@@ -36,6 +36,7 @@ def train_agent(data_path: str, model_save_path: str, total_timesteps: int = 100
         "MlpPolicy", 
         vec_env, 
         verbose=1,
+        ent_coef=0.05, # Encourage exploration
         tensorboard_log="./logs/ppo_market_maker/"
     )
     
@@ -55,4 +56,4 @@ if __name__ == "__main__":
     data_file = "data/features/BTC_features.csv"
     model_file = "models/ppo_trading_model"
     
-    train_agent(data_file, model_file, total_timesteps=50000)
+    train_agent(data_file, model_file, total_timesteps=500000)
