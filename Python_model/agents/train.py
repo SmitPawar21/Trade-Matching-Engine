@@ -25,7 +25,7 @@ def train_agent(data_path: str, model_save_path: str, total_timesteps: int = 100
     # We use a Monitor wrapper to log episode rewards and lengths
     def make_env():
         # max_steps limits each episode length
-        env = HistoricalMarketEnv(data_df=train_df, initial_cash=10000.0, max_steps=500, trade_size=1.0)
+        env = HistoricalMarketEnv(data_df=train_df, initial_cash=10000.0, max_steps=500, trade_fraction=0.2)
         return Monitor(env)
         
     vec_env = DummyVecEnv([make_env])

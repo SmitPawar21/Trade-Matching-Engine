@@ -20,7 +20,7 @@ def test_environment():
         data_path=data_path,
         initial_cash=10000.0,
         max_steps=100,
-        trade_size=1.0 # Buy/sell 1 BTC
+        trade_fraction=0.2 # Trade 20% of available balance per action
     )
     
     obs, info = env.reset()

@@ -1,6 +1,11 @@
 import pandas as pd
 import numpy as np
 import pandas_ta as ta
+
+# Disable Numba to prevent Python 3.12 compatibility crash in pandas_ta
+if hasattr(ta, 'pbase'):
+    ta.pbase.use_numba = False
+
 def add_basic_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
     Adds basic technical indicators to the dataframe using pandas-ta.

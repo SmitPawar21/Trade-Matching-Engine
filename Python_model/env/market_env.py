@@ -17,7 +17,7 @@ class HistoricalMarketEnv(gym.Env):
     """
     metadata = {"render_modes": ["human"]}
     
-    def __init__(self, data_path: Optional[str] = None, data_df: Optional[pd.DataFrame] = None, initial_cash: float = 10000.0, max_steps: int = 500, trade_size: float = 1.0):
+    def __init__(self, data_path: Optional[str] = None, data_df: Optional[pd.DataFrame] = None, initial_cash: float = 10000.0, max_steps: int = 500, trade_fraction: float = 0.2):
         super().__init__()
         
         # Load and prepare data
@@ -48,7 +48,7 @@ class HistoricalMarketEnv(gym.Env):
         
         # Component Initialization
         self.portfolio = Portfolio(initial_cash=initial_cash)
-        self.simulator = Simulator(fixed_trade_size=trade_size)
+        self.simulator = Simulator(trade_fraction=trade_fraction)
         self.reward_calc = RewardCalculator()
         self.obs_builder = ObservationBuilder(self.feature_columns)
         

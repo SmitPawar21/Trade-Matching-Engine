@@ -22,7 +22,7 @@ def run_backtest(model_path: str, data_path: str):
     
     # Create the testing environment (deterministic, no random start)
     # We set max_steps to the length of the test data so it runs through the whole period
-    env = HistoricalMarketEnv(data_df=test_df, initial_cash=10000.0, max_steps=len(test_df), trade_size=1.0)
+    env = HistoricalMarketEnv(data_df=test_df, initial_cash=10000.0, max_steps=len(test_df), trade_fraction=0.2)
     # Force start index to 0 for a clean backtest through the whole test set
     env.start_index = 0
     
