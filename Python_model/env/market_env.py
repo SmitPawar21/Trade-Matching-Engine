@@ -36,8 +36,8 @@ class HistoricalMarketEnv(gym.Env):
         self.prices = self.df['Close'].values
         
         # Extract features for observation
-        exclude_cols = [col for col in self.df.columns if 'time' in col.lower() or 'date' in col.lower()]
-        self.feature_columns = [col for col in self.df.columns if col not in exclude_cols]
+        # Only use Price and Volume features to match Java's MarketState perfectly
+        self.feature_columns = ['Close', 'Volume']
         self.features_array = self.df[self.feature_columns].values
         
         # Environment configuration
