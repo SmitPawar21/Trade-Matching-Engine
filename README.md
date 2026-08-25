@@ -1,58 +1,72 @@
-# 🚀 High-Performance Matching Engine & RL Trading System
+# Trade Matching Engine & RL Agent Trade simulator
 
-Welcome to the **Matching Engine Project**! This system is a high-performance, event-driven limit order book (LOB) exchange coupled with an autonomous Reinforcement Learning (RL) trading agent. It seamlessly bridges a robust Java-based matching engine, a Python-powered AI intelligence layer, and a MERN stack web interface.
+Welcome to the **Matching Engine Project**. This is not just another CRUD app, it's a high-octane limit order book (LOB) exchange. I've bridged a rock-solid Java matching engine, an autonomous Python-based Reinforcement Learning (RL) trading agent, and a sleek MERN stack frontend into a single, cohesive ecosystem.
 
-## 🎯 Problem
+## Table of Contents
 
-Building a real-time cryptocurrency or stock exchange requires handling thousands of orders per second with **zero race conditions** and strict **price-time priority**. Furthermore, creating a realistic testing environment requires intelligent market-making agents that adapt to market conditions rather than following hardcoded, predictable rules.
+- [The Challenge](#the-challenge)
+- [System Architecture](#system-architecture)
+- [Technology Stack](#technology-stack)
+- [Core Capabilities](#core-capabilities)
+- [Getting Started](#getting-started)
+- [Environment Configuration](#environment-configuration)
+- [API Documentation](#api-documentation)
+- [Screenshots](#screenshots)
+- [Under the Hood: Design Decisions](#under-the-hood-design-decisions)
+- [What's Next?](#whats-next)
 
-This project solves this by separating the matching logic into isolated concurrent threads per symbol and integrating an offline-trained Reinforcement Learning agent to provide dynamic liquidity and autonomous trading.
+## The Challenge
 
-## 🏗️ Architecture
+Building a real-time exchange is notoriously difficult. You have to process thousands of orders per second, guarantee zero race conditions, and ruthlessly enforce price-time priority. Testing these systems is equally painful because hardcoded trading bots don't behave like real market participants.
 
-The system is designed with a multi-threaded, non-blocking asynchronous architecture:
+This project tackles both problems head-on. It strips away traditional locking bottlenecks by using isolated, concurrent threads for each trading symbol. On top of that, it introduces an offline-trained Reinforcement Learning agent that acts as a dynamic market maker, learning and adapting to market friction rather than just blindly firing orders.
 
-1. **Transport Layer**: A TCP Socket Server receives JSON payloads for order actions.
-2. **Engine Manager**: Acts as the central orchestrator, routing incoming requests to the appropriate processing thread based on the trading symbol (e.g., BTC, ETH).
-3. **Symbol Engines (Event Loop)**: Dedicated background threads per symbol ensure thread-safety. Orders are processed sequentially via a `LinkedBlockingQueue`, eliminating the need for expensive locking mechanisms.
-4. **Order Book**: The core matching logic utilizes dual `TreeMap`s to maintain strict price-time priority.
-5. **Agent/Simulation Layer**: An embedded hook for market-making agents. It features a custom MLP network inference engine running purely in Java without heavy ML dependencies.
-6. **Intelligence Layer (Python)**: A custom Gymnasium environment trains the agent using the Proximal Policy Optimization (PPO) algorithm, blending market conditions with portfolio state.
+## System Architecture
 
-## 💻 Tech Stack
+My multi-threaded, asynchronous architecture is built for speed and reliability:
 
-* **Core Engine**: Java (Multithreading, Sockets, Concurrent Collections, Jackson)
-* **Intelligence / AI Model**: Python, `gymnasium`, `stable-baselines3`, `pandas`, `numpy`
-* **Web Ecosystem**: MERN Stack (MongoDB, Express, React, Node.js)
+1. **Transport Layer**: A lightning-fast TCP Socket Server handles incoming JSON order payloads.
+2. **Engine Manager**: The central orchestrator that routes incoming trades to the correct symbol thread (e.g., BTC, ETH).
+3. **Symbol Engines (Event Loop)**: Dedicated background threads per symbol ensure absolute thread-safety. Orders stream through a `LinkedBlockingQueue` sequentially, completely bypassing expensive, slow synchronization locks.
+4. **Order Book**: The beating heart of the engine uses dual `TreeMap` data structures to maintain strict, unshakeable price-time priority.
+5. **Simulation Layer**: Embedded hooks allow market-making agents to interface directly with the exchange. This includes a custom MLP network inference engine built purely in Java—no heavy ML bloatware required.
+6. **Intelligence Layer**: A custom Python Gymnasium environment uses Proximal Policy Optimization (PPO) to train the RL agent, forcing it to juggle both live market conditions and its own portfolio state.
 
-## ✨ Features
+## Technology Stack
 
-* **Blazing Fast Matching**: Lock-free order execution utilizing dedicated threads per symbol.
-* **Strict Price-Time Priority**: Maintained effortlessly through a dual `TreeMap` structure.
-* **Dependency-Free AI Inference**: Executes ONNX/MLP network matrix multiplications natively in Java for ultra-low latency.
-* **Reinforcement Learning Agent**: Autonomous agent trained using PPO, capable of Fractional Trading.
-* **Realistic Market Friction**: The simulator accounts for commissions, slippage, and inventory penalties to train robust models.
-* **Event-Driven Messaging Bus**: Internal Pub/Sub system decoupling matching logic from network I/O.
+* **Core Engine**: Java (Sockets, Multithreading, Concurrent Collections, Jackson)
+* **Intelligence Layer**: Python, `gymnasium`, `stable-baselines3`, `pandas`, `numpy`
+* **Web Ecosystem**: MongoDB, Express, React, Node.js (MERN)
 
-## 🚀 How to Run
+## Core Capabilities
 
-### 1. Start the Java Engine
-Navigate to the engine directory and compile/run the main application:
+* **Blazing Fast Matching**: Lock-free order execution powered by dedicated threads per symbol.
+* **Flawless Priority Management**: Price-time priority maintained effortlessly in `O(log N)` time via dual TreeMaps.
+* **Zero-Dependency AI Inference**: I parse and execute neural network matrix multiplications natively in Java. Zero Python dependencies at runtime.
+* **Smart Autonomous Trading**: My RL agent is trained using PPO and supports fractional trading to manage risk effectively.
+* **Realistic Market Dynamics**: The training simulator enforces real-world friction, including commissions, slippage, and inventory holding penalties.
+* **Event-Driven Messaging**: A decoupled internal Pub/Sub system isolates matching logic from network I/O.
+
+## Getting Started
+
+Ready to spin up the exchange? Here is how to get all three layers running.
+
+### 1. Launch the Java Engine
+Navigate to the engine directory, compile, and run the main core:
 ```bash
-# Example compilation and run commands
 javac engine/MatchingEngineApp.java
 java engine.MatchingEngineApp
 ```
 
-### 2. Train the RL Agent (Python)
-Navigate to the `Python_model` directory to begin training the PPO agent on historical data:
+### 2. Train the RL Agent
+Navigate to the `Python_model` directory to kick off PPO agent training on historical market data:
 ```bash
 cd Python_model
 python agents/train.py
 ```
 
-### 3. Start the Web Interface (MERN)
-*(Assuming standard MERN structure)*
+### 3. Boot the MERN Interface
+Start the backend and frontend servers to interact with the engine visually:
 ```bash
 # Backend
 cd backend && npm install && npm run dev
@@ -60,9 +74,9 @@ cd backend && npm install && npm run dev
 cd frontend && npm install && npm start
 ```
 
-## 🔐 Environment Variables
+## Environment Configuration
 
-Create a `.env` file in the appropriate directories to configure your instances:
+Create `.env` files in your respective directories to wire everything together:
 
 ```env
 # Java Engine
@@ -77,11 +91,11 @@ JWT_SECRET=your_super_secret_key
 DATA_PATH=./data/historical_data.csv
 ```
 
-## 📖 API Documentation
+## API Documentation
 
-The Java Engine uses a TCP Socket server for high-speed communication. Here are some of the standard JSON payloads:
+The Java Engine uses a lightweight TCP Socket server for maximum throughput. Here is how you communicate with it:
 
-**Send a New Order:**
+**Submitting a New Order (JSON):**
 ```json
 {
   "command": "NEW_ORDER",
@@ -93,31 +107,32 @@ The Java Engine uses a TCP Socket server for high-speed communication. Here are 
 }
 ```
 
-**Domain Events Received (Asynchronous):**
-The server pushes events back to the client via the `EngineResponsePublisher`:
+**Asynchronous Domain Events:**
+The server pushes real-time events back to the client via the `EngineResponsePublisher`. Expect payloads like:
 * `OrderAcceptedEvent`
 * `TradeExecutedEvent`
 * `OrderFilledEvent`
 * `OrderRejectedEvent`
 
-## 📸 Screenshots
+## Screenshots
 
-*(Visuals from the CompliQ Main Assets Folder)*
+Take a look at the system in action (Visuals sourced from the CompliQ Main Assets Folder):
 
-![Screenshot 1](file:///b:/placement%20course/JAVA%20development/compliqMain/assets/screenshot1.png)
-![Screenshot 2](file:///b:/placement%20course/JAVA%20development/compliqMain/assets/screenshot2.png)
-![Screenshot 3](file:///b:/placement%20course/JAVA%20development/compliqMain/assets/screenshot3.png)
-> **Note:** Ensure your image files are present in the `b:\placement course\JAVA development\compliqMain\assets` directory to view them properly. You can adjust the exact filenames in this README as needed.
+![Dashboard](file:///b:/placement%20course/JAVA%20development/compliqMain/assets/screenshot1.png)
+![Order Book](file:///b:/placement%20course/JAVA%20development/compliqMain/assets/screenshot2.png)
+![Trading View](file:///b:/placement%20course/JAVA%20development/compliqMain/assets/screenshot3.png)
 
-## 🧠 Key Design Decisions
+> **Note:** Ensure your image files are present in the `b:\placement course\JAVA development\compliqMain\assets` directory to view them properly.
 
-* **Thread-Per-Symbol Concurrency**: Instead of synchronizing the entire order book (which creates massive performance bottlenecks), orders are queued to an asynchronous event loop specific to each symbol. This guarantees state mutations are thread-safe and incredibly fast.
-* **O(log N) Matching Algorithm**: Utilizing dual `TreeMap`s ensures that finding the best bid or ask takes logarithmic time, keeping the engine highly responsive even under heavy load.
-* **Pure Java Inference Engine**: Instead of importing massive machine learning frameworks like TensorFlow into the Java engine, neural network weights are loaded via JSON. The forward pass is computed using raw Java math, saving memory and eliminating dependency bloat.
-* **Dense RL Reward Function**: The Python agent is driven by a complex reward function that balances PnL, inventory penalties, and drawdown, preventing it from learning lazy "buy-and-hold" strategies.
+## Under the Hood: Design Decisions
 
-## 🚀 Future Improvements
+* **Thread-Per-Symbol Concurrency**: Synchronizing an entire order book creates a massive bottleneck. Instead, we queue orders to an asynchronous event loop specific to each symbol. State mutations are guaranteed to be thread-safe and incredibly fast.
+* **O(log N) Matching Algorithm**: Finding the best bid or ask needs to be instantaneous. Dual `TreeMap`s guarantee logarithmic lookup times, keeping the engine responsive even during extreme volume spikes.
+* **Pure Java Inference Engine**: We refused to bloat the ultra-fast Java engine with heavy ML frameworks like TensorFlow. Neural network weights are loaded via JSON, and the forward pass is computed using raw Java math. It's lean, mean, and fast.
+* **Dense RL Reward Function**: To prevent the Python agent from learning lazy "buy-and-hold" strategies, we built a complex reward function that actively balances PnL against inventory penalties and portfolio drawdown.
 
-* **O(1) Order Cancellations**: Transitioning the order tracking system to an intrusive doubly-linked list to achieve instantaneous O(1) order cancellations.
-* **WebSocket Integration**: Upgrading the transport layer to WebSockets for seamless, real-time integration directly with the React frontend.
-* **Advanced Agent Strategies**: Training the PPO agent on order book imbalance and micro-structure data rather than just basic OHLCV candles to improve market-making decisions.
+## What's Next?
+
+* **O(1) Order Cancellations**: We are actively transitioning the order tracking system to an intrusive doubly-linked list to achieve instantaneous, O(1) order cancellations.
+* **WebSocket Integration**: Upgrading the transport layer to WebSockets for native, real-time integration directly with the React frontend.
+* **Advanced Agent Strategies**: Training the PPO agent on order book imbalance and micro-structure data rather than basic OHLCV candles to dramatically improve market-making decisions.
