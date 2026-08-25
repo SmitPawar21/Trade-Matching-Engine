@@ -116,13 +116,12 @@ The server pushes real-time events back to the client via the `EngineResponsePub
 
 ## Screenshots
 
-Take a look at the system in action (Visuals sourced from the CompliQ Main Assets Folder):
+Take a look at the system in action:
 
-![Dashboard](file:///b:/placement%20course/JAVA%20development/compliqMain/assets/screenshot1.png)
-![Order Book](file:///b:/placement%20course/JAVA%20development/compliqMain/assets/screenshot2.png)
-![Trading View](file:///b:/placement%20course/JAVA%20development/compliqMain/assets/screenshot3.png)
-
-> **Note:** Ensure your image files are present in the `b:\placement course\JAVA development\compliqMain\assets` directory to view them properly.
+![Architecture](./assets/arch.png)
+![Screenshot 1](./assets/ss1.png)
+![Screenshot 2](./assets/ss2.png)
+![Trade Results](./assets/trade-results.png)
 
 ## Under the Hood: Design Decisions
 
