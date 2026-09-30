@@ -50,6 +50,7 @@ public class ClientHandler implements Runnable {
         this.socket = socket;
         this.engineManager = engineManager;
         stateProvider = new OrderBookStateProvider(engineManager);
+        mapper.disable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     }
 
     @Override
@@ -72,6 +73,9 @@ public class ClientHandler implements Runnable {
                         )
         ) {
 
+            // Register this client to receive broadcast events (e.g., internal agent trades)
+            BroadcastPublisher.getInstance().addClient(writer);
+
             EngineResponsePublisher publisher =
                     new SocketResponsePublisher(writer);
 
@@ -83,17 +87,22 @@ public class ClientHandler implements Runnable {
                         "RAW FROM CLIENT: " + line
                 );
 
-                Envelope envelope =
-                        mapper.readValue(
-                                line,
-                                Envelope.class
-                        );
+                try {
+                    Envelope envelope =
+                            mapper.readValue(
+                                    line,
+                                    Envelope.class
+                            );
 
-                processRequest(
-                        envelope,
-                        publisher,
-                        writer
-                );
+                    processRequest(
+                            envelope,
+                            publisher,
+                            writer
+                    );
+                } catch (Exception e) {
+                    System.err.println("Failed to parse message: " + e.getMessage());
+                    writer.println("{\"status\":\"ERROR\", \"message\":\"Invalid JSON payload\"}");
+                }
             }
 
         } catch (Exception e) {

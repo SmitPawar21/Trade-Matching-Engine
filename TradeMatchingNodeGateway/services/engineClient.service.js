@@ -8,11 +8,29 @@ client.connect(JAVA_ENGINE_PORT, '127.0.0.1', () => {
     console.log("Connected to Java Engine");
 });
 
-client.on('data', (data) => {
-    const message = data.toString();
-    console.log("Received message from Java engine:", message);
+let buffer = '';
 
-    broadcast(message);
+client.on('data', (data) => {
+    buffer += data.toString();
+    
+    // Java sends newline-delimited JSON — split and broadcast each complete message
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // Keep the last (possibly incomplete) chunk in the buffer
+    
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.length === 0) continue;
+        
+        console.log("Received from Java engine:", trimmed);
+        broadcast(trimmed);
+    }
+});
+client.on('error', (err) => {
+    console.error("Socket error with Java Engine:", err.message);
+});
+
+client.on('close', () => {
+    console.log("Connection to Java Engine closed");
 });
 
 export const sendOrder = (order) => {

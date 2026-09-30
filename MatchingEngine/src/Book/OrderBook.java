@@ -1,6 +1,8 @@
 package Book;
 import java.util.*;
 
+import transport.BroadcastPublisher;
+
 import event.CancelRejectedEvent;
 import event.EngineResponsePublisher;
 import event.OrderAcceptedEvent;
@@ -189,10 +191,12 @@ public class OrderBook {
 	        sellOrder = incoming;
 	    }
 
-	    // String symbol, long buyOrderId, long sellOrderId, long tradeQty, long tradePrice
-	    publisher.publish(
-	    			new TradeExecutedEvent(buyOrder.getSymbol(), buyOrder.getOrderId(), sellOrder.getOrderId(), tradeQty, tradePrice)
-	    		);
+	    // Publish to the originating order's publisher
+	    TradeExecutedEvent tradeEvent = new TradeExecutedEvent(buyOrder.getSymbol(), buyOrder.getOrderId(), sellOrder.getOrderId(), tradeQty, tradePrice);
+	    publisher.publish(tradeEvent);
+
+	    // Also broadcast to ALL connected TCP clients (so frontend gets every trade)
+	    BroadcastPublisher.getInstance().publish(tradeEvent);
 	    
 	    System.out.println("TRADE EXECUTED -> " +
 	    		"Symbol: "+buyOrder.getSymbol()+

@@ -60,6 +60,12 @@ public class MatchingEngineApp {
             btcRunner.start();
             ethRunner.start();
             
+            simulation.RetailTraderRunner btcRetail = new simulation.RetailTraderRunner(manager, stateProvider, "BTC");
+            simulation.RetailTraderRunner ethRetail = new simulation.RetailTraderRunner(manager, stateProvider, "ETH");
+            
+            btcRetail.start();
+            ethRetail.start();
+            
             
 		} catch (Exception e) {
 			e.printStackTrace();

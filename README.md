@@ -54,8 +54,9 @@ Ready to spin up the exchange? Here is how to get all three layers running.
 ### 1. Launch the Java Engine
 Navigate to the engine directory, compile, and run the main core:
 ```bash
-javac engine/MatchingEngineApp.java
-java engine.MatchingEngineApp
+javac -cp "lib/*" -d bin (Get-ChildItem -Recurse src\*.java).FullName
+
+java -cp "bin;lib/*" engine.MatchingEngineApp
 ```
 
 ### 2. Train the RL Agent
@@ -129,6 +130,9 @@ Take a look at the system in action:
 * **O(log N) Matching Algorithm**: Finding the best bid or ask needs to be instantaneous. Dual `TreeMap`s guarantee logarithmic lookup times, keeping the engine responsive even during extreme volume spikes.
 * **Pure Java Inference Engine**: We refused to bloat the ultra-fast Java engine with heavy ML frameworks like TensorFlow. Neural network weights are loaded via JSON, and the forward pass is computed using raw Java math. It's lean, mean, and fast.
 * **Dense RL Reward Function**: To prevent the Python agent from learning lazy "buy-and-hold" strategies, we built a complex reward function that actively balances PnL against inventory penalties and portfolio drawdown.
+* **Realistic Price Dynamics via Retail Flow**: A market maker alone only provides liquidity, leaving the mid-price completely stagnant. To simulate true real-world bull/bear runs, we inject random noise traders (`RetailTraderRunner`) that aggressively cross the spread, dynamically driving the mid-price up or down.
+* **Sentiment-Driven Regime Model**: Retail order flow is governed by a mean-reverting sentiment variable that naturally produces bull runs, bear runs, and consolidation phases — mirroring real-world market structure without hardcoded scripts.
+* **Self-Healing Order Book**: When aggressive flow drains an entire side of the book, the market maker automatically detects the empty side and re-seeds liquidity around the last known mid-price, preventing permanent book death.
 
 ## What's Next?
 

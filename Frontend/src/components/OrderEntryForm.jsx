@@ -1,43 +1,47 @@
 import React, { useState } from 'react';
 
-const OrderEntryForm = () => {
+const OrderEntryForm = ({ prices }) => {
   const [formData, setFormData] = useState({
     symbol: 'BTC',
     side: 'BUY',
-    orderType: 'LIMIT',
-    price: '',
     quantity: '',
     userId: '1',
-    orderId: ''
   });
   const [status, setStatus] = useState(null);
 
+  const currentPrice = prices?.[formData.symbol] || 0;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (currentPrice <= 0) {
+      setStatus({ type: 'error', msg: 'Waiting for market price. No trades have occurred yet.' });
+      return;
+    }
+
     setStatus({ type: 'loading', msg: 'Submitting order...' });
 
-    // Ensure numeric types
     const orderPayload = {
-      ...formData,
-      price: Number(formData.price),
+      symbol: formData.symbol,
+      side: formData.side,
+      orderType: 'LIMIT',
+      price: currentPrice,
       quantity: Number(formData.quantity),
       userId: Number(formData.userId),
-      // Randomize orderId for frontend if not provided
-      orderId: formData.orderId ? Number(formData.orderId) : Math.floor(Math.random() * 1000000)
+      orderId: Math.floor(Math.random() * 1000000),
     };
 
     try {
       const response = await fetch('http://localhost:5000/api/orders/place', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderPayload)
+        body: JSON.stringify(orderPayload),
       });
       
       const data = await response.json();
       if (response.ok) {
-        setStatus({ type: 'success', msg: 'Order placed successfully!' });
-        // Reset numeric fields
-        setFormData(prev => ({ ...prev, price: '', quantity: '' }));
+        setStatus({ type: 'success', msg: `✓ ${formData.side} ${formData.quantity} ${formData.symbol} @ $${currentPrice.toLocaleString()} — Order ID: ${orderPayload.orderId}` });
+        setFormData(prev => ({ ...prev, quantity: '' }));
       } else {
         setStatus({ type: 'error', msg: data.message || 'Failed to place order' });
       }
@@ -48,22 +52,23 @@ const OrderEntryForm = () => {
 
   const handleChange = (e) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    setStatus(null); // Clear status on typing
+    setStatus(null);
   };
 
   return (
-    <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl border border-gray-700 p-6 flex-1 shadow-lg">
-      <h2 className="text-lg font-semibold text-gray-100 mb-6 flex items-center gap-2">
+    <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl border border-gray-700 p-5 flex-1 shadow-lg flex flex-col">
+      <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center gap-2">
         <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
-        Place Order
+        Place Market Order
       </h2>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+      <form onSubmit={handleSubmit} className="space-y-3 flex-1 flex flex-col">
+        {/* Symbol + User ID */}
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5">Symbol</label>
+            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Symbol</label>
             <select 
               name="symbol" 
               value={formData.symbol} 
@@ -75,20 +80,22 @@ const OrderEntryForm = () => {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5">User ID</label>
+            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">User ID</label>
             <input 
               type="number" 
               name="userId" 
               value={formData.userId} 
               onChange={handleChange}
               required
+              min="1"
               className="w-full bg-gray-900 border border-gray-700 text-gray-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 transition-colors"
             />
           </div>
         </div>
 
+        {/* Side Toggle */}
         <div>
-          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5">Side</label>
+          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Side</label>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -115,48 +122,43 @@ const OrderEntryForm = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5">Price</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">$</span>
-              <input 
-                type="number" 
-                name="price" 
-                value={formData.price} 
-                onChange={handleChange}
-                required
-                min="0"
-                className="w-full bg-gray-900 border border-gray-700 text-gray-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block pl-8 p-2.5 transition-colors"
-                placeholder="0.00"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5">Quantity</label>
-            <input 
-              type="number" 
-              name="quantity" 
-              value={formData.quantity} 
-              onChange={handleChange}
-              required
-              min="1"
-              className="w-full bg-gray-900 border border-gray-700 text-gray-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 transition-colors"
-              placeholder="0"
-            />
+        {/* Market Price Display */}
+        <div>
+          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Market Price</label>
+          <div className="w-full bg-gray-900/50 border border-gray-700/50 text-gray-200 text-sm rounded-lg p-2.5 font-mono flex items-center justify-between">
+            <span className={currentPrice > 0 ? 'text-emerald-400 font-bold' : 'text-gray-500'}>
+              {currentPrice > 0 ? `$${currentPrice.toLocaleString()}` : 'Waiting for trades...'}
+            </span>
+            <span className="text-[10px] text-gray-600 uppercase">Auto</span>
           </div>
         </div>
 
+        {/* Quantity */}
+        <div>
+          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Quantity</label>
+          <input 
+            type="number" 
+            name="quantity" 
+            value={formData.quantity} 
+            onChange={handleChange}
+            required
+            min="1"
+            className="w-full bg-gray-900 border border-gray-700 text-gray-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 transition-colors"
+            placeholder="Enter quantity"
+          />
+        </div>
+
+        {/* Submit */}
         <button 
           type="submit" 
-          disabled={status?.type === 'loading'}
-          className={`w-full py-3 rounded-lg text-sm font-bold uppercase tracking-wider text-white transition-all transform active:scale-[0.98] ${
+          disabled={status?.type === 'loading' || currentPrice <= 0}
+          className={`w-full py-3 rounded-lg text-sm font-bold uppercase tracking-wider text-white transition-all transform active:scale-[0.98] mt-auto ${
             formData.side === 'BUY' 
               ? 'bg-emerald-600 hover:bg-emerald-500 shadow-[0_0_15px_rgba(5,150,105,0.3)]' 
               : 'bg-red-600 hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.3)]'
-          } ${status?.type === 'loading' ? 'opacity-70 cursor-not-allowed' : ''}`}
+          } ${(status?.type === 'loading' || currentPrice <= 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          {status?.type === 'loading' ? 'Processing...' : `Submit ${formData.side} Order`}
+          {status?.type === 'loading' ? 'Processing...' : `${formData.side} at Market`}
         </button>
 
         {status && (

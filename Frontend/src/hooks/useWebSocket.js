@@ -4,8 +4,11 @@ const WS_URL = 'ws://localhost:8080';
 
 export const useWebSocket = () => {
   const [events, setEvents] = useState([]);
+  const [trades, setTrades] = useState([]);
   const [prices, setPrices] = useState({ BTC: 0, ETH: 0 });
+  const [prevPrices, setPrevPrices] = useState({ BTC: 0, ETH: 0 });
   const [isConnected, setIsConnected] = useState(false);
+  const [stats, setStats] = useState({ totalTrades: 0, totalVolume: 0 });
   const ws = useRef(null);
 
   const connect = useCallback(() => {
@@ -30,21 +33,31 @@ export const useWebSocket = () => {
     ws.current.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const enrichedData = { ...data, _timestamp: timestamp };
         
-        // Add to event feed (keep last 50)
-        setEvents((prev) => {
-          const newEvents = [data, ...prev].slice(0, 50);
-          return newEvents;
-        });
+        // Add to event feed (keep last 100)
+        setEvents((prev) => [enrichedData, ...prev].slice(0, 100));
 
-        // Update mid prices based on GET_STATE or regular event payload if it includes it
-        // If it's a TRADE event, update the price
-        if (data.type === 'TradeExecutedEvent') {
-            const { symbol, tradePrice } = data;
-            setPrices(prev => ({
-                ...prev,
-                [symbol]: tradePrice
-            }));
+        // Handle trade events — Java sends eventType: "TRADE_EXECUTED"
+        if (data.eventType === 'TRADE_EXECUTED') {
+          // Update price with direction tracking
+          setPrices(prev => {
+            setPrevPrices({ ...prev });
+            return {
+              ...prev,
+              [data.symbol]: data.tradePrice
+            };
+          });
+
+          // Add to trade history (keep last 50)
+          setTrades(prev => [enrichedData, ...prev].slice(0, 50));
+
+          // Update stats
+          setStats(prev => ({
+            totalTrades: prev.totalTrades + 1,
+            totalVolume: prev.totalVolume + (data.tradeQty || 0)
+          }));
         }
 
       } catch (err) {
@@ -62,12 +75,11 @@ export const useWebSocket = () => {
     };
   }, [connect]);
 
-  // Function to request state from the server if needed
   const sendRequest = (payload) => {
-      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-          ws.current.send(JSON.stringify(payload));
-      }
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify(payload));
+    }
   };
 
-  return { events, prices, isConnected, sendRequest, setPrices };
+  return { events, trades, prices, prevPrices, isConnected, stats, sendRequest, setPrices };
 };

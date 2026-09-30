@@ -28,6 +28,12 @@ public class MarketMakerRunner {
 
 	private long orderIdCounter = 100000;
 
+	/**
+	 * Remember the last valid mid price so we can recover
+	 * if one side of the book gets completely drained.
+	 */
+	private long lastKnownMidPrice = 0;
+
 	public MarketMakerRunner(EngineManager engineManager, MarketAgent agent, MarketStateProvider stateProvider,
 			String symbol) {
 		super();
@@ -38,7 +44,7 @@ public class MarketMakerRunner {
 	}
 	
 	public void start() {
-        scheduler.scheduleAtFixedRate(this::runAgent, 0, 100, TimeUnit.MILLISECONDS);
+        scheduler.scheduleAtFixedRate(this::runAgent, 0, 30, TimeUnit.SECONDS);
     }
 	
 	private void runAgent() {
@@ -70,37 +76,64 @@ public class MarketMakerRunner {
 		long bidPrice = (long) state.getBestBid();
 		long askPrice = (long) state.getBestAsk();
 
-		// Safety: skip if either side of the book is empty
+		// Track the last valid mid price for recovery
+		if (bidPrice > 0 && askPrice > 0) {
+			lastKnownMidPrice = (bidPrice + askPrice) / 2;
+		}
+
+		// Recovery: if one or both sides are empty, re-seed around last known mid
 		if (bidPrice <= 0 || askPrice <= 0) {
+			if (lastKnownMidPrice <= 0) {
+				return; // No history to recover from
+			}
+			System.out.println(symbol + " -> RECOVERY: re-seeding book around last mid=" + lastKnownMidPrice);
+			long halfSpread = Math.max(50, lastKnownMidPrice / 1000); // ~0.1% spread
+			submitOrder(OrderSide.BUY,  lastKnownMidPrice - halfSpread);
+			submitOrder(OrderSide.SELL, lastKnownMidPrice + halfSpread);
 			return;
 		}
 		
 		switch(action) {
 			case TIGHT_SPREAD:
-				bidPrice += 1;
-	            askPrice -= 1;
+			    long tightOffset = java.util.concurrent.ThreadLocalRandom.current().nextInt(1, 11);
+				bidPrice += tightOffset;
+	            askPrice -= tightOffset;
 	            break;
             
+            case WIDE_SPREAD:
+                long wideOffset = java.util.concurrent.ThreadLocalRandom.current().nextInt(1, 11);
+                bidPrice -= wideOffset;
+                askPrice += wideOffset;
+                break;
+                
 			case AGGRESSIVE_BUY:
-                bidPrice += 2;
+                // Cross the spread to buy immediately from the ask
+                bidPrice = askPrice;
                 break;
                 
 			case AGGRESSIVE_SELL:
-                askPrice -= 2;
+                // Cross the spread to sell immediately to the bid
+                askPrice = bidPrice;
                 break;
                 
 			default:
                 break;
 		}
 		
-		submitOrder(OrderSide.BUY,bidPrice);
+		// Only submit BUY if we are not aggressively selling
+		if (action != AgentAction.AGGRESSIVE_SELL) {
+		    submitOrder(OrderSide.BUY, bidPrice);
+		}
 
-        submitOrder(OrderSide.SELL,askPrice);
+        // Only submit SELL if we are not aggressively buying
+        if (action != AgentAction.AGGRESSIVE_BUY) {
+            submitOrder(OrderSide.SELL, askPrice);
+        }
 	}
 	
 	private void submitOrder(OrderSide side, long price) {
-		Order order = new Order(orderIdCounter++, symbol, -1, side, OrderType.LIMIT, price, 10, 10, OrderStatus.NEW, new Date());
-		engineManager.submitOrder(order,null);
+		Order order = new Order(orderIdCounter++, symbol, 7777, side, OrderType.LIMIT, price, 10, 10, OrderStatus.NEW, new Date());
+		engineManager.submitOrder(order, null);
 	}
 	
 }
