@@ -44,7 +44,7 @@ public class MarketMakerRunner {
 	}
 	
 	public void start() {
-        scheduler.scheduleAtFixedRate(this::runAgent, 0, 30, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(this::runAgent, 0, 100, TimeUnit.MILLISECONDS);
     }
 	
 	private void runAgent() {

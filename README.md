@@ -115,6 +115,16 @@ The server pushes real-time events back to the client via the `EngineResponsePub
 * `OrderFilledEvent`
 * `OrderRejectedEvent`
 
+## Observability & Metrics
+
+The Java Engine is fully instrumented with Prometheus to expose real-time metrics for Grafana dashboards. These metrics provide critical insights into engine health and market micro-structure:
+
+1. **Order Throughput**: Tracks the rate of incoming orders. *What it tells us:* Identifies periods of high market volatility, or potential API downtime if traffic unexpectedly drops to zero.
+2. **Trade Execution Rate**: Tracks successfully matched trades. *What it tells us:* Combined with throughput, it reveals the engine's "fill rate" (how much incoming traffic actually results in matched trades).
+3. **Order Book Depth (Liquidity)**: Gauges the total quantity of resting orders in the book. *What it tells us:* Provides a real-time snapshot of market liquidity and identifies if the market is heavily skewed toward buyers or sellers.
+4. **Matching Latency**: Measures the microsecond delay to process and match an order. *What it tells us:* Ensures the engine isn't bottlenecking under heavy load (we track the 95th/99th percentiles to guarantee strict performance SLAs).
+5. **Traded Volume**: Tracks the cumulative quantity of assets exchanged. *What it tells us:* Used for calculating overall market volume and identifying when large block trades are absorbing liquidity.
+
 ## Screenshots
 
 Take a look at the system in action:

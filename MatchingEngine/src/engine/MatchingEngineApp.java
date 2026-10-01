@@ -12,10 +12,14 @@ import model.OrderStatus;
 import model.OrderType;
 import simulation.MarketMakerRunner;
 import transport.EngineSocketServer;
+import io.prometheus.client.exporter.HTTPServer;
 
 public class MatchingEngineApp {
 	public static void main(String[] args) throws InterruptedException {
 		try {
+			// Start Prometheus Metrics Server on port 9092 (since 9090 is used by prometheus.exe itself)
+			HTTPServer prometheusServer = new HTTPServer(9092);
+
 			 // 1. Create engine manager
             EngineManager manager =
                     new EngineManager();

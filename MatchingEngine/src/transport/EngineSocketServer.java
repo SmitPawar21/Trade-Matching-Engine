@@ -13,10 +13,10 @@ public class EngineSocketServer {
 	}
 	
 	public void start() throws Exception {
-        ServerSocket server = new ServerSocket(9090);
+        ServerSocket server = new ServerSocket(9091);
 
         System.out.println(
-                "Java Engine listening on 9090"
+                "Java Engine listening on 9091"
         );
 
         while (true) {

@@ -2,7 +2,8 @@ package Book;
 import java.util.*;
 
 import transport.BroadcastPublisher;
-
+import engine.EngineMetrics;
+import io.prometheus.client.Histogram.Timer;
 import event.CancelRejectedEvent;
 import event.EngineResponsePublisher;
 import event.OrderAcceptedEvent;
@@ -64,16 +65,23 @@ public class OrderBook {
 	
 	// processNewOrder(Order order)
 	public void processNewOrder(Order order, EngineResponsePublisher publisher) {
-		if (validateOrder(order) != null) {
+		String validationError = validateOrder(order);
+		if (validationError != null) {
+			if (order != null && order.getSymbol() != null) {
+				EngineMetrics.orderRejections.labels(order.getSymbol(), validationError).inc();
+			}
 	        publisher.publish(
                 new OrderRejectedEvent(
-                    order.getSymbol(),
-                    order.getOrderId(),
+                    order != null ? order.getSymbol() : "UNKNOWN",
+                    order != null ? order.getOrderId() : -1,
                     "INVALID_ORDER"
                 )
 	        );
 	        return;
 	    }
+	    
+		EngineMetrics.incomingOrders.labels(order.getSymbol(), order.getSide().name(), order.getType().name()).inc();
+		Timer requestTimer = EngineMetrics.matchingLatency.labels(order.getSymbol()).startTimer();
 
 	    publisher.publish(
             new OrderAcceptedEvent(
@@ -86,6 +94,8 @@ public class OrderBook {
 		if(order.getRemainingQuantity() > 0 && order.getType() == OrderType.LIMIT) {
 			addToBook(order);
 		}
+		
+		requestTimer.observeDuration();
 	}
 	
 	// match(Order order)
@@ -173,6 +183,8 @@ public class OrderBook {
 		level.getOrders().addLast(order);
 		
 		cancelMap.put(order.getOrderId(), new OrderReference(order));
+		
+		EngineMetrics.orderBookDepth.labels(order.getSymbol(), order.getSide().name()).inc(order.getRemainingQuantity());
 	}
 	
 	// Execute Trade
@@ -190,6 +202,10 @@ public class OrderBook {
 	        buyOrder = resting;
 	        sellOrder = incoming;
 	    }
+	    
+	    EngineMetrics.tradesExecuted.labels(buyOrder.getSymbol()).inc();
+	    EngineMetrics.volumeExecuted.labels(buyOrder.getSymbol()).inc(tradeQty);
+	    EngineMetrics.orderBookDepth.labels(resting.getSymbol(), resting.getSide().name()).dec(tradeQty);
 
 	    // Publish to the originating order's publisher
 	    TradeExecutedEvent tradeEvent = new TradeExecutedEvent(buyOrder.getSymbol(), buyOrder.getOrderId(), sellOrder.getOrderId(), tradeQty, tradePrice);
@@ -224,6 +240,7 @@ public class OrderBook {
 		PriceLevel level = getLevel(ref);
 		
 		level.getOrders().remove(ref.getOrder());
+		EngineMetrics.orderBookDepth.labels(ref.getOrder().getSymbol(), ref.getOrder().getSide().name()).dec(ref.getOrder().getRemainingQuantity());
 //		cancel is not truly O(1) yet.
 //		The above line has O(n) Time Complexity
 //		Real exchanges solve this with:
