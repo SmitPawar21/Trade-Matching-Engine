@@ -206,6 +206,7 @@ public class OrderBook {
 	    EngineMetrics.tradesExecuted.labels(buyOrder.getSymbol()).inc();
 	    EngineMetrics.volumeExecuted.labels(buyOrder.getSymbol()).inc(tradeQty);
 	    EngineMetrics.orderBookDepth.labels(resting.getSymbol(), resting.getSide().name()).dec(tradeQty);
+	    EngineMetrics.lastTradedPrice.labels(buyOrder.getSymbol()).set(tradePrice);
 
 	    // Publish to the originating order's publisher
 	    TradeExecutedEvent tradeEvent = new TradeExecutedEvent(buyOrder.getSymbol(), buyOrder.getOrderId(), sellOrder.getOrderId(), tradeQty, tradePrice);

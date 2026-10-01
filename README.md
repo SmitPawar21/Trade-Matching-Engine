@@ -133,6 +133,7 @@ Take a look at the system in action:
 ![Screenshot 1](./assets/ss1.png)
 ![Screenshot 2](./assets/ss2.png)
 ![Trade Results](./assets/trade-results.png)
+![Grafana Dashboard](./assets/obs.png)
 
 ## Under the Hood: Design Decisions
 

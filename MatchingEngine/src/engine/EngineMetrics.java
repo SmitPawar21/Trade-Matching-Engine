@@ -48,4 +48,10 @@ public class EngineMetrics {
             .help("Total volume traded.")
             .labelNames("symbol")
             .register();
+    // 7. Last Traded Price (Gauge)
+    public static final Gauge lastTradedPrice = Gauge.build()
+            .name("engine_last_traded_price")
+            .help("The price of the last executed trade.")
+            .labelNames("symbol")
+            .register();
 }
